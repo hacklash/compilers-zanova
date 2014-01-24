@@ -15,17 +15,3 @@ The Infrastructure for a new compilers class, building a compiler for a function
   * Example Compiler
   * Test Cases
   * Faulty Compilers
-* Languages
-  * Single Byte Numbers
-  * + Arithmetic and Logic
-  * + Multiplication and Division
-  * + Comparison Operators
-  * + If0
-  * + Functions for Explicit Continuations
-  * Top Level Functions
-  * Automatic CPSing to ^
-  * Vector function and Malloc
-  * List Functions
-  * Closures
-  * ...
-  
