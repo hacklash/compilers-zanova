@@ -8,7 +8,7 @@ The Infrastructure for a new compilers class, building a compiler for a function
   * Test Validator - accept no tests that fail against the reference implementation
   * Test Grader - grade each student's tests against known faulty compilers
   * Test Runner - run each student's code against our tests, and other students' tests
-  * Test Database - record student's valid test cases and how many other students' compilers fail to pass the test
+  * Test Database - record student's valid test cases and how many other students' compilers fail to pass each test
 * Per Language
   * Specification
   * Interpreter - the reference implementation (Includes a parser and IR data structures)
