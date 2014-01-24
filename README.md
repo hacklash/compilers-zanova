@@ -12,7 +12,7 @@ The Infrastructure for a new compilers class, building a compiler for a function
 * Per Language
   * Specification
   * Interpreter - the reference implementation (Includes a parser and IR data structures)
-  * Example Compiler
+  * Compiler
   * Test Cases
   * Faulty Compilers
 * Languages

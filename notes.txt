@@ -1,0 +1,11 @@
+Test Format Spec
+'(lang-id program cin cout exit-value)
+
+Submission Spec
+'(lang-id compiler-executable set-of-tests)
+
+Private Language Spec
+(parse interp to-asm IR-structs)
+
+Public Language Spec
+redex?
