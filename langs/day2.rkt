@@ -11,6 +11,12 @@
 (struct binop e (opor lhs rhs) #:prefab)
 (struct unaop e (opor opand) #:prefab)
 
+(struct mult e (lhs rhs) #:prefab)
+;; implement divide as multiple return valued function and build quotient and
+;; remainder from that?
+(struct quot e (lhs rhs) #:prefab)
+(struct rem e (lhs rhs) #:prefab)
+
 (define binop-assoc?
   (match-lambda
     [(or '- (? (λ (op) (equal? op x86:sub)))) #f]
@@ -29,6 +35,12 @@
 
 (define parse
   (match-lambda
+    [(list (? (λ (s) (equal? s '*))) lhs rhs)
+     (mult (parse lhs) (parse rhs))]
+    [(list (? (λ (s) (equal? s 'quotient))) lhs rhs)
+     (quot (parse lhs) (parse rhs))]
+    [(list (? (λ (s) (equal? s 'remainder))) lhs rhs)
+     (rem (parse lhs) (parse rhs))]
     [(list (? (λ (s) (and (symbol? s) (hash-has-key? binops s))) 
               operator)
            lhs
@@ -42,9 +54,29 @@
      (num b)]))
 
 ;; eax is default return value
-;; for binary operators do one side first, store on stack and do the other side
 (define to-asm
   (match-lambda
+    [(mult l r)
+     (x86:seqn
+      (to-asm l)
+      (x86:mov x86:ebx x86:eax)
+      (to-asm r)
+      (x86:imul x86:ebx))]
+    [(quot l r)
+     (x86:seqn
+      (to-asm r)
+      (x86:mov x86:ebx x86:eax)
+      (to-asm l)
+      #;(x86:cdq)
+      (x86:idiv x86:ebx))]
+    [(rem l r)
+     (x86:seqn
+      (to-asm r)
+      (x86:mov x86:ebx x86:eax)
+      (to-asm l)
+      #;(x86:cdq)
+      (x86:idiv x86:ebx)
+      (x86:mov x86:eax x86:edx))]
     [(binop o l r)
      (x86:seqn
       (to-asm l)
@@ -78,6 +110,17 @@
 
 (define interp
   (match-lambda
+    [(mult lhs rhs)
+     (* (interp lhs)
+        (interp rhs))]
+    [(quot lhs rhs)
+     (quotient
+      (interp lhs)
+      (interp rhs))]
+    [(rem lhs rhs)
+     (remainder
+      (interp lhs)
+      (interp rhs))]
     [(binop opor lhs rhs)
      ((x86-op->racket-op opor)
       (interp lhs)
