@@ -74,7 +74,7 @@
   (if0 (+ 0 1) 3 4)
   ((if0 (= (+ 2 2) (- 6 2)) 3 4) => 4)
   ((if0 (< 4 (- 4 1)) 3 4) => 3)]
- #;[(day5)
+ [(day5)
   ((define (f a b)
      (+ a b))
    (app f 1 2))
@@ -129,13 +129,13 @@
      b)
    (app f 0 1))
 
-  ((define (f a b)
+  #;((define (f a b)
      (app g a b))
    (define (g a b)
      a)
    (app f 0 1))
 
-  ((define (f a b)
+  #;((define (f a b)
      (app g a b))
    (define (g a b)
      b)
