@@ -1,140 +1,100 @@
-#lang racket
+#lang racket/base
 (require racket/contract
          racket/match
+         (only-in plai define-type type-case)
          (prefix-in x86: "asm.rkt"))
 
-;; * quotient remainder
+#| Add * quotient remainder to the binops
+   E = <num> | (<binop> E E) | (<unaop> E)
+   <binop> = + | - | bitwise-and | bitwise-ior | bitwise-xor
+             | * | quotient | remainder
+   <unaop> = add1 | sub1 | bitwise-not
+|#
 
-(struct e () #:prefab)
-(struct num e (n) #:prefab)
-
-(struct binop e (opor lhs rhs) #:prefab)
-(struct unaop e (opor opand) #:prefab)
-
-(struct mult e (lhs rhs) #:prefab)
-;; implement divide as multiple return valued function and build quotient and
-;; remainder from that?
-(struct quot e (lhs rhs) #:prefab)
-(struct rem e (lhs rhs) #:prefab)
-
-(define binop-assoc?
-  (match-lambda
-    [(or '- (? (λ (op) (equal? op x86:sub)))) #f]
-    [_ #t]))
+(define-type E 
+  [num (n number?)]
+  [binop (op binop-src?) (lhs E?) (rhs E?)]
+  [unaop (opor unaop-src?) (opand E?)])
 
 (define binops
   (hash '+ x86:add
         '- x86:sub
         'bitwise-and x86:and
         'bitwise-ior x86:or
-        'bitwise-xor x86:xor))
+        'bitwise-xor x86:xor
+        '* (match-lambda* [(list x86:eax (? x86:register? r)) 
+                           (x86:imul r)])
+        'quotient (match-lambda* [(list x86:eax (? x86:register? r)) 
+                                  (x86:idiv r)])
+        'remainder (match-lambda* [(list x86:eax (? x86:register? r))
+                                   (x86:seqn
+                                    (x86:idiv r)
+                                    (x86:mov x86:eax x86:edx))])))
+(define (binop-src? op) (hash-has-key? binops op))
+(define (binop-src->asm op) (hash-ref binops op))
+
 (define unaops
   (hash 'add1 x86:inc
         'sub1 x86:dec
         'bitwise-not x86:not))
+(define (unaop-src? op) (hash-has-key? unaops op))
+(define (unaop-src->asm op) (hash-ref unaops op))
 
 (define parse
   (match-lambda
-    [(list (? (λ (s) (equal? s '*))) lhs rhs)
-     (mult (parse lhs) (parse rhs))]
-    [(list (? (λ (s) (equal? s 'quotient))) lhs rhs)
-     (quot (parse lhs) (parse rhs))]
-    [(list (? (λ (s) (equal? s 'remainder))) lhs rhs)
-     (rem (parse lhs) (parse rhs))]
-    [(list (? (λ (s) (and (symbol? s) (hash-has-key? binops s))) 
-              operator)
-           lhs
-           rhs)
-     (binop (hash-ref binops operator) (parse lhs) (parse rhs))]
-    [(list (? (λ (s) (and (symbol? s) (hash-has-key? unaops s)))
-              operator)
-           operand)
-     (unaop (hash-ref unaops operator) (parse operand))]
+    [(list (? binop-src? operator) lhs rhs)
+     (binop operator (parse lhs) (parse rhs))]
+    [(list (? unaop-src? operator) operand)
+     (unaop operator (parse operand))]
     [(? byte? b)
      (num b)]))
 
-;; eax is default return value
-(define to-asm
-  (match-lambda
-    [(mult l r)
+(define (to-asm pp)
+  (type-case E pp
+    [binop (op lhs rhs)
      (x86:seqn
-      (to-asm l)
+      (x86:push x86:ebx)
+      (to-asm rhs)
       (x86:mov x86:ebx x86:eax)
-      (to-asm r)
-      (x86:imul x86:ebx))]
-    [(quot l r)
-     (x86:seqn
-      (to-asm r)
-      (x86:mov x86:ebx x86:eax)
-      (to-asm l)
-      #;(x86:cdq)
-      (x86:idiv x86:ebx))]
-    [(rem l r)
-     (x86:seqn
-      (to-asm r)
-      (x86:mov x86:ebx x86:eax)
-      (to-asm l)
-      #;(x86:cdq)
-      (x86:idiv x86:ebx)
-      (x86:mov x86:eax x86:edx))]
-    [(binop o l r)
-     (x86:seqn
-      (to-asm l)
-      (x86:push x86:eax)
-      (to-asm r)
-      (if (binop-assoc? o)
-          (x86:pop x86:ebx)
-          (x86:seqn
-           (x86:mov x86:ebx x86:eax)
-           (x86:pop x86:eax)))
-      
-      (o x86:eax x86:ebx))]
-    [(unaop operator operand)
+      (to-asm lhs)
+      ((binop-src->asm op) x86:eax x86:ebx)
+      (x86:pop x86:ebx))]
+    [unaop (operator operand)
      (x86:seqn
       (to-asm operand)
-      (operator x86:eax))]
-    [(num b)
+      ((unaop-src->asm operator) x86:eax))]
+    [num (b)
      (x86:seqn
       (x86:mov x86:eax b))]))
 
-(define (x86-op->racket-op o)
-  (cond
-    [(equal? o x86:add) +]
-    [(equal? o x86:sub) -]
-    [(equal? o x86:and) bitwise-and]
-    [(equal? o x86:or) bitwise-ior]
-    [(equal? o x86:xor) bitwise-xor]
-    [(equal? o x86:inc) add1]
-    [(equal? o x86:dec) sub1]
-    [(equal? o x86:not) bitwise-not]))
-
-(define interp
+(define op-src->rkt
   (match-lambda
-    [(mult lhs rhs)
-     (* (interp lhs)
-        (interp rhs))]
-    [(quot lhs rhs)
-     (quotient
+    ['+ +]
+    ['- -]
+    ['bitwise-and bitwise-and]
+    ['bitwise-ior bitwise-ior]
+    ['bitwise-xor bitwise-xor]
+    ['add1 add1]
+    ['sub1 sub1]
+    ['bitwise-not bitwise-not]
+    ['* *]
+    ['quotient quotient]
+    ['remainder remainder]))
+
+(define (interp pp)
+  (type-case E pp
+    [binop (opor lhs rhs)
+     ((op-src->rkt opor)
       (interp lhs)
       (interp rhs))]
-    [(rem lhs rhs)
-     (remainder
-      (interp lhs)
-      (interp rhs))]
-    [(binop opor lhs rhs)
-     ((x86-op->racket-op opor)
-      (interp lhs)
-      (interp rhs))]
-    [(unaop opor opand)
-     ((x86-op->racket-op opor)
+    [unaop (opor opand)
+     ((op-src->rkt opor)
       (interp opand))]
-    [(num b)
+    [num (b)
      b]))
 
 (provide
  (contract-out
-  [struct e ()]
-  [struct (num e) ([n byte?])]
-  [parse (-> any/c e?)]
-  [to-asm (-> e? x86:asm?)]
-  [interp (-> e? any/c)]))
+  [parse (-> any/c E?)]
+  [to-asm (-> E? x86:asm?)]
+  [interp (-> E? any/c)]))

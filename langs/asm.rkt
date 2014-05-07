@@ -17,6 +17,7 @@
   [ebp register?]
   [esp register?]
   [esp+ (-> number? register?)]
+  [register? (-> any/c boolean?)]
   [asm? (-> any/c boolean?)]
   [seqn (->* () () #:rest (listof asm?)
                   asm?)]
