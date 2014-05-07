@@ -97,6 +97,7 @@
   (x86:make-label 'end))
 
 (define gamma (make-parameter (hash)))
+(define stack-offset (make-parameter 0))
 
 ;; eax is default return value
 (define to-asm
@@ -124,16 +125,21 @@
             ([gamma (for/fold ([g (gamma)]) 
                       ([v vars]
                        [i (in-naturals 0)]);; (in-naturals ?)
-                      (hash-set g v (x86:esp+ (* 4 i))))])(to-asm body))
+                      (hash-set g 
+                                v 
+                                (cons 'esp+ (* 4 i))))])
+          (to-asm body))
         (x86:jmp end-label))]
       [(application function values)
        (x86:seqn
         ;; calculate the values to pass with stack
         
         (apply x86:seqn 
-               (for/list ([v (reverse values)])
+               (for/list ([v (reverse values)]
+                          [so (in-naturals 0)])
                  (x86:seqn
-                  (to-asm v)
+                  (parameterize ([stack-offset so])
+                    (to-asm v))
                   (x86:push x86:eax))))
         
         ;; clear the stack of anything but the new values?
@@ -143,7 +149,10 @@
         )]
       [(id i)
        (x86:seqn
-        (x86:mov x86:eax (hash-ref (gamma) (id i))))]
+        (x86:mov x86:eax ((match-lambda 
+                            [(cons 'esp+ n) (x86:esp+ (+ n (* 4 (stack-offset))))]
+                            [expr expr])
+                          (hash-ref (gamma) (id i)))))]
       [(if0 test trueb falsb) ; optimize away? not as default
        (let ([trueb-end (x86:make-label)]
              [falsb-end (x86:make-label)])
