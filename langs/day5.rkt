@@ -5,6 +5,7 @@
          (prefix-in x86: "asm.rkt"))
 
 ;; define app
+;; functions don't return
 
 (struct e () #:prefab)
 (struct num e (n) #:prefab)
@@ -57,7 +58,8 @@
 
 (define parse
   (match-lambda
-    [(list (? (λ (i) #t) (list (? (λ (s) (equal? s 'define))) _ _) defs) ... app-body)
+    [(list (? (λ (i) #t) (list (? (λ (s) (equal? s 'define))) _ _) defs) ... 
+           app-body)
      (definition-seq (map parse defs) (parse app-body))]
     [(list (? (λ (s) (equal? s 'define)))
            (list (? valid-id? the-id) (? valid-id? ids)...)
@@ -91,10 +93,57 @@
     [(? byte? b)
      (num b)]))
 
+(define end-label 
+  (x86:make-label 'end))
+
+(define gamma (make-parameter (hash)))
+
 ;; eax is default return value
 (define to-asm
   (parameterize ([gamma (hash)])
     (match-lambda
+      [(definition-seq defines body)
+       ;; define function labels and add to gamma
+       (parameterize
+           ([gamma (for/fold ([g (gamma)])
+                     ([def defines])
+                     (hash-set g 
+                               (definition-naming def)
+                               (x86:make-label 
+                                (id-name (definition-naming def)))))])
+         (x86:seqn
+          (to-asm body)
+          (apply x86:seqn (map to-asm defines))
+          (x86:label-mark end-label)))]
+      [(definition naming vars body)
+       ;; put [esp+] for vars in gamma
+       
+       (x86:seqn
+        (x86:label-mark (hash-ref (gamma) naming))
+        (parameterize
+            ([gamma (for/fold ([g (gamma)]) 
+                      ([v vars]
+                       [i (in-naturals 0)]);; (in-naturals ?)
+                      (hash-set g v (x86:esp+ (* 4 i))))])(to-asm body))
+        (x86:jmp end-label))]
+      [(application function values)
+       (x86:seqn
+        ;; calculate the values to pass with stack
+        
+        (apply x86:seqn 
+               (for/list ([v (reverse values)])
+                 (x86:seqn
+                  (to-asm v)
+                  (x86:push x86:eax))))
+        
+        ;; clear the stack of anything but the new values?
+        
+        (x86:jmp (hash-ref (gamma) function))
+        
+        )]
+      [(id i)
+       (x86:seqn
+        (x86:mov x86:eax (hash-ref (gamma) (id i))))]
       [(if0 test trueb falsb) ; optimize away? not as default
        (let ([trueb-end (x86:make-label)]
              [falsb-end (x86:make-label)])
@@ -109,11 +158,9 @@
           (x86:label-mark falsb-end)))]
       [(boolop op l r)
        (x86:seqn
-        (to-asm l)
-        (x86:push x86:eax)
         (to-asm r)
         (x86:mov x86:ebx x86:eax)
-        (x86:pop x86:eax)
+        (to-asm l)
         (x86:cmp x86:eax x86:ebx)
         #;(x86:mov x86:eax 0)
         ((match op
@@ -146,15 +193,14 @@
         (x86:mov x86:eax x86:edx))]
       [(binop o l r)
        (x86:seqn
-        (to-asm l)
-        (x86:push x86:eax)
         (to-asm r)
-        (if (binop-assoc? o)
+        (x86:mov x86:ebx x86:eax)
+        (to-asm l)
+        #;(if (binop-assoc? o)
             (x86:pop x86:ebx)
             (x86:seqn
              (x86:mov x86:ebx x86:eax)
              (x86:pop x86:eax)))
-        
         (o x86:eax x86:ebx))]
       [(unaop operator operand)
        (x86:seqn
@@ -174,8 +220,6 @@
     [(equal? o x86:inc) add1]
     [(equal? o x86:dec) sub1]
     [(equal? o x86:not) bitwise-not]))
-
-(define gamma (make-parameter (hash)))
 
 (define interp
   (match-lambda
