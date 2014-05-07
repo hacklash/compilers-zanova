@@ -129,19 +129,19 @@
      b)
    (app f 0 1))
 
-  #;((define (f a b)
+  ((define (f a b)
      (app g a b))
    (define (g a b)
      a)
    (app f 0 1))
 
-  #;((define (f a b)
+  ((define (f a b)
      (app g a b))
    (define (g a b)
      b)
    (app f 0 1))
 
-  #;((define (fac n)
+  ((define (fac n)
      (app fac-help n 1))
    (define (fac-help n a)
      (if0 n

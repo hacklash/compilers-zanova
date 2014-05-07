@@ -197,10 +197,10 @@
         (x86:mov x86:ebx x86:eax)
         (to-asm l)
         #;(if (binop-assoc? o)
-            (x86:pop x86:ebx)
-            (x86:seqn
-             (x86:mov x86:ebx x86:eax)
-             (x86:pop x86:eax)))
+              (x86:pop x86:ebx)
+              (x86:seqn
+               (x86:mov x86:ebx x86:eax)
+               (x86:pop x86:eax)))
         (o x86:eax x86:ebx))]
       [(unaop operator operand)
        (x86:seqn
@@ -221,8 +221,11 @@
     [(equal? o x86:dec) sub1]
     [(equal? o x86:not) bitwise-not]))
 
-(define interp
-  (match-lambda
+(define (interp prgm)
+  #;(displayln prgm)
+  #;(fprintf (current-output-port) "Gamma: ~a\n" (gamma))
+  #;(displayln "")
+  (match prgm
     [(definition-seq defines body) ;; make definition-seq work like let*?
      (parameterize 
          ([gamma (for/fold ([g (gamma)])
@@ -235,8 +238,9 @@
      (let ([fd (hash-ref (gamma) function)])
        (parameterize 
            ([gamma (for/fold ([g (gamma)])
-                     ([var (definition-variables fd)]
-                      [val values])
+                     ([var (map id-name
+                                (definition-variables fd))]
+                      [val (map interp values)])
                      (hash-set g var val))])
          (interp (definition-body fd))))]
     [(if0 test trueb falsb) ;; should if0 be short-circuiting?
@@ -271,9 +275,11 @@
      ((x86-op->racket-op opor)
       (interp opand))]
     [(id i)
-     (interp (hash-ref (gamma) (id i)))]
+     (interp (hash-ref (gamma) i))]
     [(num b)
-     b]))
+     b]
+    [interped-val
+     interped-val]))
 
 (provide
  (contract-out
