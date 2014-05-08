@@ -5,7 +5,7 @@
          (prefix-in x86: "asm.rkt"))
 
 #| Add if0
-   Fe = E | (if0 E Fe Fe)
+   K = E | (if0 E K K)
    E  = <num> | (<binop> E E) | (<unaop> E)
    <binop> =  + | - | bitwise-and | bitwise-ior | bitwise-xor
             | * | quotient | remainder
@@ -18,16 +18,16 @@
   [binop (op binop-src?) (lhs E?) (rhs E?)]
   [unaop (opor unaop-src?) (opand E?)])
 
-(define-type Fe
-  [fe-E (e E?)]
-  [if0 (test E?) (trueb Fe?) (falsb Fe?)])
+(define-type K
+  [k-E (e E?)]
+  [if0 (test E?) (trueb K?) (falsb K?)])
 
 (define (binop-src->asm-helper ->asm)
   (match-lambda*
     [(list x86:eax (? x86:register? r))
      (->asm r)]))
 
-(define (cmpop->asm op)
+(define (comparison-operator->asm op)
   (binop-src->asm-helper
    (λ (r)
      (x86:seqn
@@ -48,11 +48,11 @@
                       (x86:seqn
                        (x86:idiv r)
                        (x86:mov x86:eax x86:edx))))
-        '= (cmpop->asm x86:sete)
-        '< (cmpop->asm x86:setl)
-        '<= (cmpop->asm x86:setle)
-        '> (cmpop->asm x86:setg)
-        '>= (cmpop->asm x86:setge)))
+        '= (comparison-operator->asm x86:sete)
+        '< (comparison-operator->asm x86:setl)
+        '<= (comparison-operator->asm x86:setle)
+        '> (comparison-operator->asm x86:setg)
+        '>= (comparison-operator->asm x86:setge)))
 (define (binop-src? op) (hash-has-key? binops op))
 (define (binop-src->asm op) (hash-ref binops op))
 
@@ -63,11 +63,11 @@
 (define (unaop-src? op) (hash-has-key? unaops op))
 (define (unaop-src->asm op) (hash-ref unaops op))
 
-(define parse-fe
+(define parse-k
   (match-lambda
     [(list 'if0 test trueb falsb)
-     (if0 (parse-e test) (parse-fe trueb) (parse-fe falsb))]
-    [expr (fe-E (parse-e expr))]))
+     (if0 (parse-e test) (parse-k trueb) (parse-k falsb))]
+    [expr (k-E (parse-e expr))]))
 
 (define parse-e
   (match-lambda
@@ -78,49 +78,45 @@
     [(? byte? b)
      (num b)]))
 
-(define parse parse-fe)
-
-(define (fe-to-asm pp)
-  (type-case Fe pp
+(define (k->asm pp)
+  (type-case K pp
     [if0 
      (test trueb falsb)
-         (let ([falsb-start (x86:make-label 'falsb-start)]
-               [if0-end (x86:make-label 'if0-end)])
-           (x86:seqn
-            (e-to-asm test)
-            (x86:cmp x86:eax 0)
-            (x86:jne falsb-start)
-            (fe-to-asm trueb)
-            (x86:jmp if0-end)
-            (x86:label-mark falsb-start)
-            (fe-to-asm falsb)
-            (x86:label-mark if0-end)))]
-    [fe-E (e) (e-to-asm e)]))
+     (let ([falsb-start (x86:make-label 'falsb-start)]
+           [if0-end (x86:make-label 'if0-end)])
+       (x86:seqn
+        (e->asm test)
+        (x86:cmp x86:eax 0)
+        (x86:jne falsb-start)
+        (k->asm trueb)
+        (x86:jmp if0-end)
+        (x86:label-mark falsb-start)
+        (k->asm falsb)
+        (x86:label-mark if0-end)))]
+    [k-E (e) (e->asm e)]))
 
-(define (e-to-asm pp)
+(define (e->asm pp)
   (type-case E pp
     [binop 
      (op lhs rhs)
      (x86:seqn
       (x86:push x86:ebx)
-      (e-to-asm rhs)
+      (e->asm rhs)
       (x86:mov x86:ebx x86:eax)
-      (e-to-asm lhs)
+      (e->asm lhs)
       ((binop-src->asm op) x86:eax x86:ebx)
       (x86:pop x86:ebx))]
     [unaop 
      (operator operand)
      (x86:seqn
-      (e-to-asm operand)
+      (e->asm operand)
       ((unaop-src->asm operator) x86:eax))]
     [num 
      (b)
      (x86:seqn
       (x86:mov x86:eax b))]))
 
-(define to-asm fe-to-asm)
-
-(define (cmpop->rkt op)
+(define (comparison-operator->rkt op)
   (match-lambda* [(list l r) (if (op l r) 1 0)]))
 
 (define op-src->rkt
@@ -136,38 +132,36 @@
     ['* *]
     ['quotient quotient]
     ['remainder remainder]
-    ['= (cmpop->rkt =)]
-    ['< (cmpop->rkt <)]
-    ['<= (cmpop->rkt <=)]
-    ['> (cmpop->rkt >)]
-    ['>= (cmpop->rkt >=)]))
+    ['= (comparison-operator->rkt =)]
+    ['< (comparison-operator->rkt <)]
+    ['<= (comparison-operator->rkt <=)]
+    ['> (comparison-operator->rkt >)]
+    ['>= (comparison-operator->rkt >=)]))
 
-(define (fe-interp pp)
-  (type-case Fe pp
+(define (interp-k pp)
+  (type-case K pp
     [if0 
      (test trueb falsb)
-         (if (= 0 (e-interp test))
-             (fe-interp trueb)
-             (fe-interp falsb))]
-    [fe-E (e) (e-interp e)]))
+     (if (= 0 (interp-e test))
+         (interp-k trueb)
+         (interp-k falsb))]
+    [k-E (e) (interp-e e)]))
 
-(define (e-interp pp)
+(define (interp-e pp)
   (type-case E pp
     [binop 
      (opor lhs rhs)
      ((op-src->rkt opor)
-      (e-interp lhs)
-      (e-interp rhs))]
+      (interp-e lhs)
+      (interp-e rhs))]
     [unaop 
      (opor opand)
      ((op-src->rkt opor)
-      (e-interp opand))]
+      (interp-e opand))]
     [num (b) b]))
-
-(define interp fe-interp)
 
 (provide
  (contract-out
-  [parse (-> any/c Fe?)]
-  [to-asm (-> Fe? x86:asm?)]
-  [interp (-> Fe? any/c)]))
+  [rename parse-k parse (-> any/c K?)]
+  [rename k->asm to-asm (-> K? x86:asm?)]
+  [rename interp-k interp (-> K? any/c)]))
