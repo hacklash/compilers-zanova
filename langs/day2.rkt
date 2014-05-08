@@ -16,20 +16,24 @@
   [binop (op binop-src?) (lhs E?) (rhs E?)]
   [unaop (opor unaop-src?) (opand E?)])
 
+(define (binop-src->asm-helper ->asm)
+  (match-lambda*
+    [(list x86:eax (? x86:register? r))
+     (->asm r)]))
+
 (define binops
   (hash '+ x86:add
         '- x86:sub
         'bitwise-and x86:and
         'bitwise-ior x86:or
         'bitwise-xor x86:xor
-        '* (match-lambda* [(list x86:eax (? x86:register? r)) 
-                           (x86:imul r)])
-        'quotient (match-lambda* [(list x86:eax (? x86:register? r)) 
-                                  (x86:idiv r)])
-        'remainder (match-lambda* [(list x86:eax (? x86:register? r))
-                                   (x86:seqn
-                                    (x86:idiv r)
-                                    (x86:mov x86:eax x86:edx))])))
+        '* (binop-src->asm-helper x86:imul)
+        'quotient (binop-src->asm-helper x86:idiv)
+        'remainder (binop-src->asm-helper 
+                    (λ (r) 
+                      (x86:seqn
+                       (x86:idiv r)
+                       (x86:mov x86:eax x86:edx))))))
 (define (binop-src? op) (hash-has-key? binops op))
 (define (binop-src->asm op) (hash-ref binops op))
 
