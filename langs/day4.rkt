@@ -1,7 +1,7 @@
 #lang racket/base
 (require racket/contract
          racket/match
-         (only-in plai define-type type-case)
+         plai/datatype
          (prefix-in x86: "asm.rkt"))
 
 #| Add if0
@@ -77,7 +77,8 @@
 
 (define (fe-to-asm pp)
   (type-case Fe pp
-    [if0 (test trueb falsb)
+    [if0 
+     (test trueb falsb)
          (let ([falsb-start (x86:make-label 'falsb-start)]
                [if0-end (x86:make-label 'if0-end)])
            (x86:seqn
@@ -93,7 +94,8 @@
 
 (define (e-to-asm pp)
   (type-case E pp
-    [binop (op lhs rhs)
+    [binop 
+     (op lhs rhs)
      (x86:seqn
       (x86:push x86:ebx)
       (e-to-asm rhs)
@@ -101,11 +103,13 @@
       (e-to-asm lhs)
       ((binop-src->asm op) x86:eax x86:ebx)
       (x86:pop x86:ebx))]
-    [unaop (operator operand)
+    [unaop 
+     (operator operand)
      (x86:seqn
       (e-to-asm operand)
       ((unaop-src->asm operator) x86:eax))]
-    [num (b)
+    [num 
+     (b)
      (x86:seqn
       (x86:mov x86:eax b))]))
 
@@ -135,7 +139,8 @@
 
 (define (fe-interp pp)
   (type-case Fe pp
-    [if0 (test trueb falsb)
+    [if0 
+     (test trueb falsb)
          (if (= 0 (e-interp test))
              (fe-interp trueb)
              (fe-interp falsb))]
@@ -143,15 +148,16 @@
 
 (define (e-interp pp)
   (type-case E pp
-    [binop (opor lhs rhs)
+    [binop 
+     (opor lhs rhs)
      ((op-src->rkt opor)
       (e-interp lhs)
       (e-interp rhs))]
-    [unaop (opor opand)
+    [unaop 
+     (opor opand)
      ((op-src->rkt opor)
       (e-interp opand))]
-    [num (b)
-     b]))
+    [num (b) b]))
 
 (define interp fe-interp)
 

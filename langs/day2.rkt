@@ -1,7 +1,7 @@
 #lang racket/base
 (require racket/contract
          racket/match
-         (only-in plai define-type type-case)
+         plai/datatype
          (prefix-in x86: "asm.rkt"))
 
 #| Add * quotient remainder to the binops
@@ -51,7 +51,8 @@
 
 (define (to-asm pp)
   (type-case E pp
-    [binop (op lhs rhs)
+    [binop 
+     (op lhs rhs)
      (x86:seqn
       (x86:push x86:ebx)
       (to-asm rhs)
@@ -59,11 +60,13 @@
       (to-asm lhs)
       ((binop-src->asm op) x86:eax x86:ebx)
       (x86:pop x86:ebx))]
-    [unaop (operator operand)
+    [unaop 
+     (operator operand)
      (x86:seqn
       (to-asm operand)
       ((unaop-src->asm operator) x86:eax))]
-    [num (b)
+    [num 
+     (b)
      (x86:seqn
       (x86:mov x86:eax b))]))
 
@@ -83,15 +86,16 @@
 
 (define (interp pp)
   (type-case E pp
-    [binop (opor lhs rhs)
+    [binop 
+     (opor lhs rhs)
      ((op-src->rkt opor)
       (interp lhs)
       (interp rhs))]
-    [unaop (opor opand)
+    [unaop 
+     (opor opand)
      ((op-src->rkt opor)
       (interp opand))]
-    [num (b)
-     b]))
+    [num (b) b]))
 
 (provide
  (contract-out

@@ -1,7 +1,7 @@
 #lang racket/base
 (require racket/contract
          racket/match
-         (only-in plai define-type type-case)
+         plai/datatype
          (prefix-in x86: "asm.rkt"))
 
 #| A valid program is a number [0,256), whose exit code, when run is that number
