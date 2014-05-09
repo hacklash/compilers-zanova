@@ -83,9 +83,10 @@
      (x86:seqn
       (to-asm operand)
       ((unaop-src->asm operator) x86:eax))]
-    [num (b)
-         (x86:seqn
-          (x86:mov x86:eax b))]))
+    [num 
+     (b)
+     (x86:seqn
+      (x86:mov x86:eax b))]))
 
 (define (cmpop->rkt op)
   (match-lambda* [(list l r) (if (op l r) 1 0)]))
