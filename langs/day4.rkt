@@ -20,7 +20,7 @@
   [Unaop (opor unaop-src?) (opand E?)])
 
 (define-type K
-  [K-E (e E?)]
+  [Return (e E?)]
   [If0 (test E?) (trueb K?) (falsb K?)])
 
 (define (binop-src->asm-helper ->asm)
@@ -71,7 +71,7 @@
   (match-lambda
     [(list 'if0 test trueb falsb)
      (If0 (parse-e test) (parse-k trueb) (parse-k falsb))]
-    [expr (K-E (parse-e expr))]))
+    [expr (Return (parse-e expr))]))
 
 (define parse-e
   (match-lambda
@@ -97,7 +97,7 @@
         (x86:label-mark falsb-start)
         (k->asm falsb)
         (x86:label-mark if0-end)))]
-    [K-E (e) (e->asm e)]))
+    [Return (e) (e->asm e)]))
 
 (define (e->asm pp)
   (type-case E pp
@@ -127,7 +127,7 @@
      (if (= 0 (interp-e test))
          (interp-k trueb)
          (interp-k falsb))]
-    [K-E (e) (interp-e e)]))
+    [Return (e) (interp-e e)]))
 
 (define (interp-e pp)
   (type-case E pp
