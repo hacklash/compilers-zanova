@@ -17,6 +17,7 @@
   [ebp register?]
   [esp register?]
   [esp+ (-> number? register?)]
+  [as-ref (-> named-register? register?)]
   [register? (-> any/c boolean?)]
   [asm? (-> any/c boolean?)]
   [seqn (->* () () #:rest (listof asm?)
@@ -78,9 +79,12 @@
 (define ebp (named-register 'ebp))
 
 (struct esp+ register (offset) #:prefab)
+(struct as-ref register (reg) #:prefab)
 
 (define register->string
   (match-lambda
+   [(as-ref reg)
+    (format "[~a]" (register->string reg))]
    [(esp+ offset)
     (format "[esp+~a]" offset)]
    [(named-register name)
