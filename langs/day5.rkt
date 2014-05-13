@@ -35,7 +35,7 @@
 (define-type K
   [App 
    (function Id?) 
-   (inputs (λ (is) (andmap E? is)))]
+   (inputs (listof E?))]
   [If0 (test E?) (trueb K?) (falsb K?)]
   [Return (e E?)])
 
@@ -146,8 +146,15 @@
               (hash-set g
                         (Def-name def)
                         (x86:make-label
-                         (Id-name (Def-name def)))))])
+                         (Id-name (Def-name def)))))]
+           [max-vars 4]) ;XX derive from code?
        (x86:seqn
+        (x86:comment "Stack Preparation for Function Variables")
+        (x86:mov x86:eax 0)
+        (apply x86:seqn
+               (for/list ([v (in-range max-vars)])
+                 (x86:push x86:eax)))
+        (x86:comment "Start of Program Proper")
         (k->asm body g)
         (apply x86:seqn 
                (for/list ([def defs])
@@ -189,34 +196,21 @@
      (x86:seqn
       ;; calculate and place on the stack the value of each input
       (apply x86:seqn
-             (for/list ([i (reverse 
-                            (take (append inputs 
-                                          (map parse-e (list 0 0 0 0))) 
-                                  4))]
+             (for/list ([i (reverse inputs)]
                         [so (in-naturals)])
                (x86:seqn
                 (parameterize ([stack-offset so])
                   (e->asm i gamma))
                 (x86:push x86:eax))))
-      ;;XX clear the stack of anything but the new input values
-      (let ([stack-clean-end (x86:make-label 'stack-clean-end)])
-        (x86:seqn
-         (x86:comment "Clean the stack")
-         (x86:mov x86:eax x86:esp)
-         (x86:sub x86:eax x86:ebp)
-         (x86:mov x86:ebx 28)
-         (x86:cmp x86:eax x86:ebx)
-         (x86:jne stack-clean-end)
-         (x86:mov x86:eax (x86:esp+ 0))
-         (x86:mov (x86:esp+ 16) x86:eax)
-         (x86:mov x86:eax (x86:esp+ 4))
-         (x86:mov (x86:esp+ 20) x86:eax)
-         (x86:mov x86:eax (x86:esp+ 8))
-         (x86:mov (x86:esp+ 24) x86:eax)
-         (x86:mov x86:eax (x86:esp+ 12))
-         (x86:mov (x86:esp+ 28) x86:eax)
-         (x86:pop x86:eax)(x86:pop x86:eax)(x86:pop x86:eax)(x86:pop x86:eax)
-         (x86:label-mark stack-clean-end)))
+      ;; clear the stack of anything but the new input values
+      (x86:seqn
+       (x86:comment "Trim the old function variables from the stack")
+       (apply x86:seqn
+              (for/list ([i (in-range (length inputs))])
+                (x86:seqn (x86:mov x86:eax (x86:esp+ (* 4 i)))
+                          (x86:mov (x86:esp+ (* 4 (+ i (length inputs)))) 
+                                   x86:eax))))
+       (x86:add x86:esp (* 4 (length inputs)))) ;sub if stack grows other way
       (x86:jmp (hash-ref gamma function)))]
     [Return (e) (e->asm e gamma)]))
 
@@ -251,7 +245,7 @@
                    (x86:esp+ (* 4 (+ sp (stack-offset))))])
                 (hash-ref gamma (Id i)))))]))
 
-(define interp (λ (pp) (interp-p pp (hash))))
+(define (interp pp) (interp-p pp (hash)))
 (define (interp-p pp gamma)
   (type-case P pp
     [Program

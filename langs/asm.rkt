@@ -17,7 +17,6 @@
   [ebp register?]
   [esp register?]
   [esp+ (-> number? register?)]
-  [as-ref (-> named-register? register?)]
   [register? (-> any/c boolean?)]
   [asm? (-> any/c boolean?)]
   [seqn (->* () () #:rest (listof asm?)
@@ -36,7 +35,8 @@
   [xchg binop/c]
   [add (-> register? (or/c constant? register?)
            asm?)]
-  [sub binop/c]
+  [sub (-> register? (or/c constant? register?)
+           asm?)]
   [rename _and and binop/c]
   [rename _or or binop/c]
   [rename _xor xor binop/c]
@@ -79,12 +79,9 @@
 (define ebp (named-register 'ebp))
 
 (struct esp+ register (offset) #:prefab)
-(struct as-ref register (reg) #:prefab)
 
 (define register->string
   (match-lambda
-   [(as-ref reg)
-    (format "[~a]" (register->string reg))]
    [(esp+ offset)
     (format "[esp+~a]" offset)]
    [(named-register name)
@@ -216,7 +213,7 @@
    [(sub dest src)
     (printf "\tsub ~a, ~a\n"
             (register->string dest)
-            (register->string src))]
+            (arg->string src))]
    [(mov dest src)
     (printf "\tmov ~a, ~a\n"
             (register->string dest)
