@@ -2,6 +2,7 @@
 (require racket/contract
          racket/match
          racket/set
+         racket/list
          plai/datatype
          "../substitution-cipher.rkt"
          (prefix-in x86: "asm.rkt"))
@@ -153,7 +154,6 @@
                  (x86:seqn
                   (x86:label-mark (hash-ref g (Def-naming def)))
                   (d->asm def g))))
-        
         (x86:label-mark end-label)))]
     [P-K (k) (k->asm k gamma)]))
 
@@ -189,67 +189,34 @@
      (x86:seqn
       ;; calculate and place on the stack the value of each input
       (apply x86:seqn
-             (for/list ([i (reverse inputs)]
+             (for/list ([i (reverse 
+                            (take (append inputs 
+                                          (map parse-e (list 0 0 0 0))) 
+                                  4))]
                         [so (in-naturals)])
                (x86:seqn
                 (parameterize ([stack-offset so])
                   (e->asm i gamma))
                 (x86:push x86:eax))))
       ;;XX clear the stack of anything but the new input values
-      (let ([copy-one (x86:make-label 'copy-one)]
-            [clean-one (x86:make-label 'clean-one)]
-            [clean-stack-done (x86:make-label 'clean-stack-done)])
+      (let ([stack-clean-end (x86:make-label 'stack-clean-end)])
         (x86:seqn
          (x86:comment "Clean the stack")
-         (x86:mov x86:ecx x86:esp)
-         (x86:mov x86:ebx x86:ebp)
-         ; edx = 1 step up
          (x86:mov x86:eax x86:esp)
-         (x86:sub x86:eax x86:ebx) ;swap?
-         (x86:idiv x86:eax)
-         (x86:mov x86:edx 4)
-         (x86:imul x86:edx)
-         (x86:mov x86:edx x86:eax)
-         
-         (x86:mov x86:eax (sub1 (length inputs)))
-         (x86:imul x86:edx)
-         (x86:sub x86:ecx x86:eax)
-         
-         #;(x86:cmp x86:ebx x86:ecx) ; these two lines
-         #;(x86:je clean-stack-done) ; are equivalent to the next four lines
-         (x86:mov x86:eax x86:ecx)
-         ((cmpop->asm x86:sete) x86:eax x86:ebx)
-         (x86:cmp x86:eax 0)
-         (x86:jne clean-stack-done)
-         
-         (x86:label-mark copy-one)
-         (x86:mov x86:eax x86:esp)
-         (x86:cmp x86:ecx x86:eax)
-         #;(x86:jg clean-one) ; this line is equivalent to the next three lines
-         ((cmpop->asm x86:setg) x86:eax x86:ecx)
-         (x86:cmp x86:eax 0)
-         (x86:jne clean-one)
-         
-         (x86:mov x86:eax (x86:as-ref x86:ecx))
-         (x86:mov (x86:as-ref x86:ebx) x86:eax)
-         
-         (x86:add x86:ecx x86:edx)
-         (x86:add x86:ebx x86:edx)
-         (x86:jmp copy-one)
-         
-         (x86:label-mark clean-one)
-         #;(x86:cmp x86:ebx x86:ecx) ; these two lines
-         #;(x86:je clean-stack-done) ; are equivalent to the next four lines
-         (x86:mov x86:eax x86:ecx)
-         ((cmpop->asm x86:sete) x86:eax x86:ebx)
-         (x86:cmp x86:eax 0)
-         (x86:jne clean-stack-done)
-         
-         (x86:pop x86:eax)
-         (x86:add x86:ebx x86:edx)
-         (x86:jmp clean-one)
-         
-         (x86:label-mark clean-stack-done)))
+         (x86:sub x86:eax x86:ebp)
+         (x86:mov x86:ebx 28)
+         (x86:cmp x86:eax x86:ebx)
+         (x86:jne stack-clean-end)
+         (x86:mov x86:eax (x86:esp+ 0))
+         (x86:mov (x86:esp+ 16) x86:eax)
+         (x86:mov x86:eax (x86:esp+ 4))
+         (x86:mov (x86:esp+ 20) x86:eax)
+         (x86:mov x86:eax (x86:esp+ 8))
+         (x86:mov (x86:esp+ 24) x86:eax)
+         (x86:mov x86:eax (x86:esp+ 12))
+         (x86:mov (x86:esp+ 28) x86:eax)
+         (x86:pop x86:eax)(x86:pop x86:eax)(x86:pop x86:eax)(x86:pop x86:eax)
+         (x86:label-mark stack-clean-end)))
       (x86:jmp (hash-ref gamma function)))]
     [Return (e) (e->asm e gamma)]))
 
