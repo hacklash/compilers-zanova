@@ -135,6 +135,10 @@
 (define end-label (x86:make-label 'program-end))
 (define stack-offset (make-parameter 0))
 
+(define (num-function-variables def)
+  (type-case D def
+    [Def (naming vars body) (length vars)]))
+
 (define to-asm (λ (pp) (p->asm pp (hash))))
 (define (p->asm pp gamma)
   (type-case P pp
@@ -147,7 +151,7 @@
                         (Def-name def)
                         (x86:make-label
                          (Id-name (Def-name def)))))]
-           [max-vars 4]) ;XX derive from code?
+           [max-vars (apply max (map num-function-variables defs))])
        (x86:seqn
         (x86:comment "Stack Preparation for Function Variables")
         (x86:mov x86:eax 0)
