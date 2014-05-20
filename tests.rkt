@@ -2,11 +2,11 @@
 (require "testing.rkt")
 
 (tests
- #;[(day0)
+ #;[(lang0)
   0
   42
   24] 
- #;[(day1)
+ #;[(lang1)
   (+ 1 1)
   (+ (+ 10 61) 1)
   (+ 1 (+ 3 3))
@@ -36,7 +36,7 @@
   (bitwise-xor 0 1)
   (bitwise-xor 1 0)
   (bitwise-xor 1 1)]
- #;[(day2)
+ #;[(lang2)
   (* 1 1)
   (* 1 3)
   (* 4 3)
@@ -47,7 +47,7 @@
   (remainder 8 10)
   (quotient 4 2)
   (quotient (quotient 4 1) (quotient 2 2))]
- #;[(day3)
+ #;[(lang3)
   (= 2 2)
   (= 2 1)
   (= 2 3)
@@ -67,14 +67,14 @@
   (= (* 2 2) (quotient 6 2))
   ((= (+ 2 2) (- 6 2)) => 1)
   ((< 4 (- 4 1)) => 0)]
- #;[(day4)
+ #;[(lang4)
   (if0 0 3 4)
   (if0 1 3 4)
   ((if0 (- 1 1) 3 4) => 3)
   (if0 (+ 0 1) 3 4)
   ((if0 (= (+ 2 2) (- 6 2)) 3 4) => 4)
   ((if0 (< 4 (- 4 1)) 3 4) => 3)]
- [(day5)
+ #;[(lang5)
   ((define (f a b)
      (+ a b))
    (app f 1 2))
