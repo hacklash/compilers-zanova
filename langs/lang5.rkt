@@ -131,11 +131,13 @@
     [Num (b) (error)][Unaop (r d) (error)][Binop (o l r) (error)]))
 (define (Def-name d)
   (type-case D d [Def (naming vars body) naming]))
-(define (Def-vars d)
-  (type-case D d [Def (naming vars body) vars]))
 
 (define end-label (x86:make-label 'program-end))
 (define stack-offset (make-parameter 0))
+
+(define (num-function-variables def)
+  (type-case D def
+    [Def (naming vars body) (length vars)]))
 
 (define to-asm (λ (pp) (p->asm pp (hash))))
 (define (p->asm pp gamma)
@@ -143,45 +145,56 @@
     [Program
      (defs body)
      (let ([g
-            (for/fold ([gm gamma])
+            (for/fold ([g gamma])
               ([def defs])
-              (hash-set gm
+              (hash-set g
                         (Def-name def)
                         (x86:make-label
-                         (Id-name (Def-name def)))))])
+                         (Id-name (Def-name def)))))]
+           [max-vars (apply max (map num-function-variables defs))])
        (x86:seqn
-        (k->asm body g empty)
+        (x86:comment "Stack Preparation for Function Variables")
+        (x86:mov x86:eax 0)
+        (apply x86:seqn
+               (for/list ([v (in-range max-vars)])
+                 (x86:push x86:eax)))
+        (x86:comment "Start of Program Proper")
+        (k->asm body g)
         (apply x86:seqn 
                (for/list ([def defs])
                  (x86:seqn
                   (x86:label-mark (hash-ref g (Def-naming def)))
                   (d->asm def g))))
         (x86:label-mark end-label)))]
-    [P-K (k) (x86:seqn (k->asm k gamma empty) (x86:label-mark end-label))]))
+    [P-K (k) (k->asm k gamma)]))
 
 (define (d->asm pp gamma)
   (type-case D pp
     [Def
      (naming vars body)
-     (k->asm body
-             (for/fold ([g gamma])
-               ([v vars]
-                [n (in-naturals)])
-               (hash-set g v (cons 'stack-pos n)))
-             vars)]))
+     (x86:seqn
+      (k->asm body
+              (for/fold ([g gamma])
+                ([v vars]
+                 [n (in-naturals)])
+                (hash-set g v (cons 'stack-pos n))))
+      (x86:jmp end-label))]))
 
-(define (k->asm pp gamma old-args)
+(define (k->asm pp gamma)
   (type-case K pp
     [If0 
      (test trueb falsb)
-     (let ([falsb-start (x86:make-label 'falsb-start)])
+     (let ([falsb-start (x86:make-label 'falsb-start)]
+           [if0-end (x86:make-label 'if0-end)])
        (x86:seqn
         (e->asm test gamma)
         (x86:cmp x86:eax 0)
         (x86:jne falsb-start)
-        (k->asm trueb gamma old-args)
+        (k->asm trueb gamma)
+        (x86:jmp if0-end)
         (x86:label-mark falsb-start)
-        (k->asm falsb gamma old-args)))]
+        (k->asm falsb gamma)
+        (x86:label-mark if0-end)))]
     [App
      (function inputs)
      (x86:seqn
@@ -193,20 +206,17 @@
                 (parameterize ([stack-offset so])
                   (e->asm i gamma))
                 (x86:push x86:eax))))
-      (if (> (length old-args) 0)
-          (x86:seqn
-           (x86:comment "Trim the old function variables from the stack")
-           (apply x86:seqn
-                  (for/list ([i (in-range (sub1 (length inputs)) -1 -1)])
-                    (x86:seqn (x86:mov x86:eax (x86:esp+ (* 4 i)))
-                              (x86:mov (x86:esp+ 
-                                        (* 4 (+ i (length old-args)))) 
-                                       x86:eax))))
-             (x86:add x86:esp 
-                      (* 4 (length old-args))));sub if stack grows other way
-            (x86:seqn))
+      ;; clear the stack of anything but the new input values
+      (x86:seqn
+       (x86:comment "Trim the old function variables from the stack")
+       (apply x86:seqn
+              (for/list ([i (in-range (length inputs))])
+                (x86:seqn (x86:mov x86:eax (x86:esp+ (* 4 i)))
+                          (x86:mov (x86:esp+ (* 4 (+ i (length inputs)))) 
+                                   x86:eax))))
+       (x86:add x86:esp (* 4 (length inputs)))) ;sub if stack grows other way
       (x86:jmp (hash-ref gamma function)))]
-    [Return (e) (x86:seqn (e->asm e gamma) (x86:jmp end-label))]))
+    [Return (e) (e->asm e gamma)]))
 
 (define (e->asm pp gamma)
   (type-case E pp
