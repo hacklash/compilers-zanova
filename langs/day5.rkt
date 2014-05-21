@@ -10,8 +10,8 @@
 #| Add (define app). Functions don't return
    P  = (D ... K) | K
    D  = (define (<id> <id> ...4) K)
-   K = (app E E ...4) | (if0 E K K) | E
-   E  = <id> | <num> | (<binop> E E) | (<unaop> E) | (func-addr <id>)
+   K = (app <id> E ...4) | (if0 E K K) | E
+   E  = <id> | <num> | (<binop> E E) | (<unaop> E)
    <binop> =  + | - | bitwise-and | bitwise-ior | bitwise-xor
             | * | quotient | remainder
             | = | < | <= | > | >=
@@ -19,7 +19,9 @@
    <id> = [^ ()[]{}",'`:#\| ]+ and not a reserved word
 |#
 
-(define (valid-id? pid)
+(define (valid-id? pid) ;XX enforce slightly stricter than racket symbols
+  #;(and (regexp-match? #rx"[^\\(\\)\\[\\]{}\\\",'`;#\\|\\\\]+" 
+                        (symbol->string pid)))
   (and (symbol? pid) 
        (not (or (unaop? pid) (binop? pid) (eq? 'if0 pid) 
                 (eq? 'define pid) (eq? 'app pid)))))
