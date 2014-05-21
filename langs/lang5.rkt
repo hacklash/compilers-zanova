@@ -234,10 +234,8 @@
      (i)
      (x86:seqn
       (x86:mov x86:eax
-               ((match-lambda 
-                  [(cons 'stack-pos sp) 
-                   (x86:esp+ (* 4 (+ sp (stack-offset))))])
-                (hash-ref gamma (Id i)))))]))
+               (match-let ([(cons 'stack-pos sp) (hash-ref gamma (Id i))])
+                 (x86:esp+ (* 4 (+ sp (stack-offset)))))))]))
 
 (define (interp pp) (interp-p pp (hash)))
 (define (interp-p pp gamma)
@@ -265,7 +263,7 @@
                    ([var (map Id-name (Def-variables fd))]
                     [val (map (λ (i) (interp-e i gamma)) inputs)])
                    (hash-set g var val))))]
-    [Return (e) (interp-e e  gamma)]))
+    [Return (e) (interp-e e gamma)]))
 
 (define (interp-e pp gamma)
   (type-case E pp
