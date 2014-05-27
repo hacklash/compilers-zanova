@@ -17,17 +17,18 @@
   [ebp register?]
   [esp register?]
   [esp+ (-> number? register?)]
+  [addr-of-label (-> label? address?)]
   [register? (-> any/c boolean?)]
   [asm? (-> any/c boolean?)]
   [seqn (->* () () #:rest (listof asm?)
                   asm?)]
-  [jmp (-> label? asm?)]
+  [jmp (-> (or/c label? register?) asm?)]
   [jne (-> label? asm?)]
   [push (-> register?
            asm?)]
   [pop (-> register?
            asm?)]
-  [mov (-> register? (or/c constant? register?)
+  [mov (-> register? (or/c constant? register? address?)
            asm?)]
   [cltd (-> asm?)]
   [cmp (-> register? (or/c constant? register?)
@@ -87,6 +88,15 @@
    [(named-register name)
     (symbol->string name)]))
 
+;; Address
+(struct address (value-str) #:prefab)
+
+(define (address->string addr)
+  (address-value-str addr))
+
+(define (addr-of-label l)
+  (address (format "~a" (label->string l))))
+
 ;; Constants
 (define constant?
   byte?)
@@ -127,6 +137,8 @@
   (match-lambda
    [(? register? r)
     (register->string r)]
+   [(? address? a)
+    (address->string a)]
    [c
     (constant->string c)]))
 
@@ -146,7 +158,9 @@
             (label->string l))]
    [(jmp l)
     (printf "\tjmp ~a\n"
-            (label->string l))]
+            (if (register? l)
+                (register->string l)
+                (label->string l)))]
    [(jne l)
     (printf "\tjne ~a\n"
             (label->string l))]
